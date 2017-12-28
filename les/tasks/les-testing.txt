@@ -1,0 +1,23 @@
+There are two more or less separated directions I'd like to pursue for testing LES. One of them is testing the actual protocol functionality through all available APIs and platforms in a synthetic environment: isolated private chain and test nodes (probably created with Puppeth), reproduceable API call test sequences with controlled peer connections/disconnections. The other direction is testing automatic peer connectivity behavior and request load distribution in a real world setting, with our own LES servers doing actual service on the mainnet while logging certain events and collecting them in a database.
+Right now LES is practically unusable on the public network because of serious peer connectivity issues so I believe the "real world" testing is more urgent at the moment. There are a number of reasons that could probably contribute to connectivity problems:
+
+- Peer discovery
+
+LES uses an experimental DHT that allows node capability advertisement. This DHT has some problems and it would make sense to log lookup attempts and their results.
+
+- Connection management
+
+Geth nodes have a maximum limit for peer connections. Light servers need to have both ETH and LES connections to do any useful service. There is a very simple logic that tries to limit the number of ETH connections to ensure that both types of connections are always available but I'm not sure it always works properly:
+https://github.com/ethereum/go-ethereum/blob/master/eth/backend.go#L388
+I saw some cases where a LES server lost all of its ETH connections and fell out of sync. Also I'm not sure that all LES connections are actually live light clients, currently there is no mechanism to kick stalled peers and the LES "slots" may be filled with useless peers. With @fjl we were planning a much more sophisticated peer connection management. I also have some plans for improving the light peer limiting logic, for example limiting connection time for peers that send a lot of requests but allow a lot of light peers that are not heavy users. Before trying to fix anything and introducing any more complexity it would be nice to see what actually happens during several days of operation.
+
+- Protocol rule violations
+
+Right now I think the Geth clients and servers do not break the protocol rules (invalid packets, flow control timing violations) but this is something we should also know for sure so any protocol error should be logged in a searchable database format.
+
+- Load balancing and limiting
+
+The flow control system tries to ensure that LES requests are served only in a certain percentage of time and every peer gets a fair share of service capacity. This is done by limiting request sending rate on the client side so that clients can also distribute load better between servers instead of sending them to an overloaded server and timing out. Overloaded servers can lead to timeouts and broken connections so we need some sophisticated statistics to see if this system works properly in a real world setting. This is something Zoltan has already been working on:
+https://github.com/micahaza/go-ethereum/tree/micahaza-ethereum-light-statistics
+
+

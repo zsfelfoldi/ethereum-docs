@@ -1,0 +1,41 @@
+I've collected some points to be addressed at the nov.27. LES collaboration kickoff meeting:
+
+- approximately how much time can you contribute to LES-related tasks in the foreseeable future?
+- preferred communication channels and methods?
+  - gitter channel
+  - github issue tracking
+  - two standup calls per week
+  - regularly scheduled discussion calls for individual tasks
+  - choose a suitable service for voice calls and screen sharing
+- questions about individual tasks, who is interested in which one (not necessarily committing to them during the first chat, just discussing)
+- what do you expect from me as a team lead? (suggestions, ideas, feedback and criticism are heavily encouraged, I am still new to building/leading a team)
+
+
+Tasks to pick from:
+
+- ultra light client mode: 
+  - find out how to configure the trusted peer list and the N-out-of-M validation logic
+  - implement the N-out-of-M validation logic in the light fetcher (les/fetcher.go), maybe also clean it up a little bit :)
+  - implement the trusted peer distinction in the server pool (les/serverpool.go) to ensure connection to as many of them as possible
+  - add an option for light servers to disable serving requests and only broadcast new heads
+    - it might make sense for trusted servers to just broadcast announcements to a lot of clients and leave the resource demanding request service to untrusted servers (less centralization)
+
+- user feedback-driven testing:
+  - choose a suitable test framework (Puppeth?) for simulating real-world scenarios with multiple peers
+  - find some valid bug reports and start building tests for them
+
+- initial steps toward user-specific or application-specific chain filters:
+(the first realistic goal with this could be the transaction history filtering; Jarrad has already mentioned that you need a proper trustless solution for that)
+  - find out what TrueBit already achieved and whether they can actually perform an on-chain interactive validation process; try it if it seems to be ready
+  - check out the VM they are using, collect all docs and specs, try available compiler tools
+
+- integrating micropayments:
+  - check out how easy it is to integrate uRaiden
+  - discuss different kinds of payment models and find out what would be convenient and acceptable for the users
+    - flat per-time payment for a live prioritized connection
+    - pay per request, with an upper limit per second/minute/hour/whatever time period
+    - the two combined
+    - quickly adjustable priority/payment levels (so that clients can lower or even stop payments when there is no need for extra priority, pay more during load peaks)
+      - more user attention required, higher price flexibility
+    - long-term adjustable priority/payment levels
+      - more convenient, users can set the preferred balance between payment amounts and general user experience and not care about it all the time

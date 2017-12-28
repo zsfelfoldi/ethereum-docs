@@ -1,0 +1,40 @@
+Here are some pointers to implementing the ULC mode. Just take a look at the relevant code, then feel free to ping me whenever you have questions (I guess it will happen a few times, I tried to document the most important parts but some of the code is still a bit messy, which I apologize for in advance).
+
+- adding the ultra light client option:
+
+Add an extra option for light client mode where the user can specify a text/json ULC config file that contains a list of trusted server enodes and N out of M parameters (which may depend on how many servers we are connected to, there may be 5 servers listed but we can still accept 2 out of 3 connected).
+Geth parameters are implemented like this:
+https://github.com/ethereum/go-ethereum/blob/master/cmd/utils/flags.go#L162
+Search for LightModeFlag or LightServFlag to find out how it is wired through the code.
+
+- requesting signed headers
+
+For trusted peers change this to announceTypeSigned:
+https://github.com/ethereum/go-ethereum/blob/master/les/peer.go#L466
+Now the client will only accept signed announcements so we can accept the corresponding headers without PoW check.
+
+- implementing the trusted validation logic:
+
+See the next request selection logic in the light fetcher:
+https://github.com/ethereum/go-ethereum/blob/master/les/fetcher.go#L400
+This is where the fetcher decides which head to request next. This can either happen by RequestByHash or by syncing (requesting headers by number and hoping that we will find our head in the end). In either case, target head is selected as the highest announced Td that we haven't tried to request from its announcer yet (if a request times out, we don't request it from the same peer again). In ULC mode, on the other hand, we want to change this logic. We have a set of trusted peers and we are looking for the (hash, number, td) tuple with the highest td that at least a given number of trusted peers have announced. Also, like in regular light mode, there has to be an announcer of the tuple who we haven't requested it from yet. This announcer does not necessarily have to be a trusted peer, if no trusted peer can serve the header, untrusted ones can do so too. Probably most of the trusted peers will not serve requests at all, just send announcements.
+
+- switching off header PoW validation:
+
+https://github.com/ethereum/go-ethereum/blob/master/les/fetcher.go#L502
+Set checkFreq to 0
+https://github.com/ethereum/go-ethereum/blob/master/core/headerchain.go#L204
+Modify the logic so that it accepts checkFreq==0 and leaves the seals bool array on all false in that case
+
+- modifying the server pool to always try to connect to them:
+
+https://github.com/ethereum/go-ethereum/blob/master/les/serverpool.go implements the server connection logic, it has a target for connected servers and also tries to have a few "known" connections which were already selected based on previously collected service quality stats. We need to add some logic to always try connecting to the trusted servers in addition to the specified target that applies for general untrusted peers.
+
+- trusted announce server option:
+
+Add an extra option for light server mode to disable serving requests and relaying transactions. Also, let clients accept these servers if they are trusted. Capabilities are negotiated here:
+https://github.com/ethereum/go-ethereum/blob/master/les/peer.go#L409
+Peer selection logic uses a CanSend function to decide which peers are suitable, clients should take the capabilities into consideration:
+https://github.com/ethereum/go-ethereum/blob/master/les/odr_requests.go#L87
+https://github.com/ethereum/go-ethereum/blob/master/les/txrelay.go#L123
+This was not implemented yet at all because until now every server served everything. Search for &distReq and canSend to find all instances of request creation and decide which ones are affected.
