@@ -2,20 +2,16 @@
 
 Ensuring light client operation requires two things: a properly implemented protocol and active server connections with suitable service quality. The first one is easier to test and control in a synthetic environment while the second one depends on many factors and is hard to ensure. It requires efficient strategies for resource allocation and incentives to run servers. Both of these are affecting the network in indirect ways so in order to find the most useful models and strategies we also need continous feedback from a number of reliable nodes to see which processes need improvement and how they are affected by changes.
 
-In this document we assume a key/value database backend that 
-
+In this document we assume a key/value database backend to store log entries. Here is a proposal to implement the "observer chain" structure and store logs there:
 
 https://github.com/zsfelfoldi/ethereum-docs/blob/master/les/tasks/chain_logging.md
 
 ### Events to be logged
 
-
-evDhtLookup{A, B, X, N1..Nn}
-
 #### General events
 
-- startup:						"event/general"+time -> evStartup{}
-- shutdown:						"event/general"+time -> evShutdown{}
+- startup						"event/general"+time -> evStartup{}
+- shutdown						"event/general"+time -> evShutdown{}
 
 - received ETH/LES connection	"event/general"+time -> evConnReceived{peerID, protocol}
 - accepted ETH/LES connection	"event/general"+time -> evConnAccepted{peerID, protocol}
@@ -23,6 +19,9 @@ evDhtLookup{A, B, X, N1..Nn}
 
 - block processing started		"event/general"+time -> evProcessingStarted{blockNumber, blockHash}
 - block processing finished		"event/general"+time -> evProcessingFinished{blockNumber, blockHash}
+
+- DHT lookup partial results	"event/general"+time -> evDhtLookup{askedNode, lookupTarget, closestNode1..closestNodeN}
+- DHT lookup final results		"event/general"+time -> evDhtLookupFinal{lookupTarget, closestNode1..closestNodeN}
 
 #### Peer specific events
 
@@ -38,18 +37,18 @@ evDhtLookup{A, B, X, N1..Nn}
 #### Can we reach the entire topic discovery DHT?
 
 Event logging:
+
 - A sends findNodeHash packet to B, lookup target is X
 - B sends N1..Nn list of known nodes closest to X
 - log: `evDhtLookup`
 
-A "final lookup" is 
+- lookup process has finished, we have a final set of closest nodes to X
+- log: `evDhtLookupFinal`
 
-Analysis tool #1: lookups should find the node with the address closest to the lookup address. Therefore filter for cases when
+Analysis tool: filter for cases when
 - node A found node N at time T1
 - node B was looking up address X at time T2 and the closest node it found was M
 - `dist(N, X) < dist(M, X) && abs(T1-T2) < 10min`
-
-Analysis tool #1
 
 #### Is our request load limitation/distribution model suitable for the purpose? How can we generalize it to introduce different priority levels for paying clients?
 

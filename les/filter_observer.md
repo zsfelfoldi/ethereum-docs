@@ -11,6 +11,7 @@ Since the OC is intended to be a general purpose event logging mechanism, its si
 See also:
 
 https://github.com/zsfelfoldi/ethereum-docs/blob/master/les/logging.md
+
 https://github.com/zsfelfoldi/ethereum-docs/blob/master/les/tasks/chain_logging.md
 
 #### Micropayment accounting, building a reputation network
@@ -24,14 +25,16 @@ https://github.com/zsfelfoldi/ethereum-docs/blob/master/les/service_model.md
 #### CHT and BloomBits trie validation
 
 Chain filters can be used for on-chain validation too:
+
 https://github.com/zsfelfoldi/ethereum-docs/blob/master/les/filter_observer.md#on-chain-validation
 
 Having an on-chain source for these trie root hashes is required for trustless checkpoint syncing:
+
 https://github.com/zsfelfoldi/ethereum-docs/blob/master/les/tasks/syncing.md
 
 #### Delegated processing and filtering
 
-Some future applications may require evaluating complex functions that access a huge amount of state data that would be too expensive to locally process for a light client. In a many-blockchain scenario (like the planned "sharding" of the Ethereum chain) it might also be too expensive to just follow every relevant chain and filter for the interesting events. A massively scalable world computer ecosystem is going to require delegated processing services too, in addition to the consensus mechanism. An observer network built from OCs and CFs can process the state of many chains block by block and collect all interesting results for the client. The client can build its observer network with the desired amount of redundancy in order to detect and punish potential incorrect executions.
+Some future applications may require evaluating complex functions that access huge amounts of state data that would be too expensive to locally process for a light client. In a many-blockchain scenario (like the planned "sharding" of the Ethereum chain) it might also be too expensive to just follow every relevant chain and filter for the interesting events. A massively scalable world computer ecosystem is going to require delegated processing services too, in addition to the consensus mechanism. An observer network built from OCs and CFs can process the states and events of many chains block by block and collect all interesting results for the client. The client can build its observer network with the desired amount of redundancy in order to detect and punish potential incorrect results.
 
 ### Observer chains
 
@@ -50,7 +53,7 @@ Whether the statement tries of subsequent blocks are interpreted as independent 
 
 #### Rules and security deposits
 
-An OC may be backed by a security deposit on the main public Ethereum chain that is locked for a certain amount of time at a judge contract that can take away the deposit if a rule or promise is broken (and transfer a portion of the deposit to the prover of the fraud).
+An OC may be backed by a security deposit on the main public Ethereum chain that is locked for a certain amount of time at a judge contract that can take the deposit away if a rule or promise is broken (and transfer a portion of it to the prover of the fraud).
 
 Observer chains have to follow these general rules:
 
@@ -58,28 +61,39 @@ Observer chains have to follow these general rules:
 - each number should be used only once (rolling back and forking are forbidden)
 - timestamps should be monotonic
 
-##### Promises
+#### Observing and filtering
 
-A promise is a special kind of chain filter definition (see below) on the OC itself. It is created by adding `"promise" + filterHash -> 1` and `"promise" + filterHash + "lastState" -> initialState` entries. If these entries exist in block `i` then the filter should be evaluated for blocks `i` and `i+1` too. The resulting filter state is always stored in the next block. A proof of a missing state entry results in a lost deposit. If any of the state transitions is challenged in a limited time window after publishing it then the signer has to defend it through an intetactive validation process, otherwise it loses its deposit too.
+The most important function of an OC is to "observe" other blockchains and certify the results of certain CFs applied to them. New statements are added for every new processed and valid block of observed chains:
 
-If the promised conditions are met then the output of the filter is nil. If the judge contract receives proof of a filter state where the output is not nil, that is considered a broken promise and results in a lost deposit too.
+`"processed" + chainID + blockNumber + blockHash -> parentHash + value + localTimeStamp`
 
-Note: a signer could try to avoid punishment after breaking a promise by withholding a part of its statement trie where the relevant filter state should be. A simple protection against this type of fraud is to always check the availability of every signer's statement subtrie belonging to the `"promise"` prefix before accepting any observer block. Any missing trie node in this subtrie should be considered a proof of dishonest operation, even if we don't know the meaning of the missing promises. More sophisticated ways of ensuring data availability could probably be realized by hiring other signers to observe the observer chain in question and run a filter on it that quasi-randomly accesses the "public" parts of the statement tries of the past few blocks. This would make it risky for others to certify the next OC block before possessing all relevant parts of the corresponding statement trie.
+where `value` is the numeric value on which fork choice is based; its meaning depends on the consensus mechanism used by the given chain (in case of PoW chains it is the "total difficulty" of the block).
+
+Adding observed block statements means no responsibility by default but additional promises may be made about further actions taken for new blocks of certain chains. One possible promise is to evaluate certain CFs on these blocks and add certificate statements. A filter certificate looks like this:
+
+`"processed" + chainID + blockNumber + blockHash + "filter" + filterHash -> filterBlockHash`
+
+##### Self-filtering
+
+Running a CF on our own OC should be handled a little bit differently. Processed block statements are not necessary. It is also not necessary to create filter blocks at all. Instead the filter state hash is updated in the same single statement of the OC:
+
+`self-filter + filterHash -> filterState`
+
+In this case the OC itself serves the same purpose as the filter chain, it hashes all previous input blocks and filter states. The result of filtering a certain observer block is always included in the next block. This construction makes it cheaper to run self-filters that do not change their internal state after every block because in these cases the state trie needs no updating at all.
+
+#### Promises
+
+A promise is a self-filter with a special definition and meaning. It is created by adding `"promise" + filterHash -> 1` and `"promise" + filterHash + "lastState" -> initialState` entries. If these entries exist in block `i` then the filter should be evaluated for blocks `i` and `i+1` too. The resulting filter state is always stored in the next block. This means that if `"promise" + filterHash -> 1` is present in block `i` but removed in block `i+1` then `lastState` will be present in blocks `i+1` and `i+2` too, then it is also removed. A special `lastState` value in block `i+1` signals that the promise has been broken in block `i`, every other value should be considered a valid internal filter state (see below). Evaluating the function for one more block after the definition has been removed ensures that the promise filter can decide whether its definition can be removed or not.
+
+Breaking a promise results in a lost deposit. The judge contract accepts Merkle proofs of the filter definition entries that may prove an invalid state transition. If any of the state transitions is challenged in a limited time window after publishing it then the signer has to defend it through an intetactive validation process. A missing `lastState` entry results in losing the deposit too.
+
+Note: a signer could try to avoid punishment after breaking a promise by withholding a part of its statement trie where the relevant filter state should be. A simple protection against this type of fraud is to always check the availability of every signer's statement subtrie belonging to the `"promise"` prefix before accepting any observer block. Any missing trie node in this subtrie should be considered a proof of dishonest operation, even if we don't know the meaning of the missing promises. Later more sophisticated ways of ensuring data availability (see "proof of availability") could be used too.
+
+Note 2: promises that are "stateless" or at least usually do not change their internal state do not require significant extra resources from the signer since the statement trie needs no updating. Also the filter function of these promises usually do not need to be evaluated by the signer at all since the promise has to be kept anyway.
 
 #### Building trust
 
-Even though there are very few general rules applying to the contents of an OC and the meaning of certain parts of the statement trie are only known by their intended recipients, collecting all statements and promises coming from a signer into a single blockchain structure has certain advantages over 
-
-- if statements are suitably organized, signer can not get away with making contradicting statements to different recipients
-- even though 
-
-
-A locked deposit (that has not been taken away) is an indicator for other peers to be able to somewhat trust the 
-
-#### Observing and filtering
-
-The exact format of chain filter definition is not decided yet
-
+Even though there are very few general rules applying to the contents of an OC and the meaning of certain parts of the statement trie are only known by their intended recipients, collecting all statements and promises coming from a signer into a single blockchain structure has certain advantages over communicating on separate channels. If statements are suitably organized then a signer can not get away with making contradicting statements to different recipients (which is very useful in accounting applications for example). A locked deposit that has not been taken away is an indicator for other peers to be able to somewhat trust the promises and certificates that the signer makes. Although this is a weak guarantee compared to public consensus, in many cases it is enough to build peer-to-peer trust and avoid spammers, sybil-attackers and fake service providers. Also, the probability of a successful fraud can be exponentially decreased by increasing the redundancy and having multiple nodes do the same calculation or check the same condition.
 
 ### Chain filters
 
@@ -98,6 +112,18 @@ filter_block[i].FilterState = filter_function(filter_block[i].ParentHash, input_
 ```
 
 The intended input dataset can either be defined as the entire input chain and everything referenced by it or just a subset of it (like the last N blocks only). It is also allowed to define an extended input dataset including some external data referenced by hash. A useful example is an observer chain observing other chains. In this use case we can allow the filter function to access not only the OC but some of the observed blockchains too.
+
+#### Filter definition
+
+```
+filterHash = SHA3("filter" + VmStateHash + chainID + firstInputBlockHash + initialFilterState)
+```
+where
+
+- VmStateHash describes a virtual machine's initial state with the filter code loaded
+- chainID identifies the input chain
+- firstInputBlockHash is the first processed block's hash; can either be the genesis hash or any other block hash
+- initialFilterState is the initial internal state of the filter
 
 #### Virtual machine and interactive validation
 
