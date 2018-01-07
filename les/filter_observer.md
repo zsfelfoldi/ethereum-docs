@@ -2,11 +2,13 @@
 
 This document proposes a peer-to-peer, trust-based, consensusless data gathering and processing mechanism based on two simple primitives: "observer chains" (OC) and "chain filters" (CF). Its intended purpose is to help creating and operating complex and scalable protocols by establishing peer-to-peer reputation and accounting that could serve as the basis of micropayment compensation in a decentralized network and enabling complex delegated data gathering and processing services between pseudonymous peers. It could enhance the performance and availability of existing Ethereum protocols (ETH, LES) and also help building more advanced topologies for handling hierarchical blockchain structures (sharding, state channels).
 
+Note: most of the potential applications and the details of implementation are still being worked on. The purpose of this document is to give an overview of my long-term plans regarding OCs and CFs and the reasons why I'd like to go in this direction. The first practical goals I'd like to achieve are event logging with OCs and on-chain CHT/BloomBitsTrie validation with CFs. Feedback is appreciated on the rest too.
+
 ### Possible applications in the light client ecosystem
 
 #### Event logging
 
-Since the OC is intended to be a general purpose event logging mechanism, its simplest use case is collecting diagnostic/statistical data. In addition to diagnostic purposes some of this data may also be post-processed with chain filters to provide service quality/capacity/availability estimates for clients. Since most of these logs can be easily falsified, such a use case that has economic consequences may require some kind of reputation based on cross correlation of client/server logs in order to detect false claims.
+Since the OC is intended to be a general purpose event logging mechanism, its simplest use case is collecting diagnostic/statistical data. In addition to diagnostic purposes some of this data may also be post-processed with chain filters to provide service quality/capacity/availability estimates for clients. Since most of these logs can be easily falsified, such a use case that has economic consequences may require some kind of reputation based on cross-correlation of client/server logs in order to detect false claims.
 
 See also:
 
@@ -16,7 +18,7 @@ https://github.com/zsfelfoldi/ethereum-docs/blob/master/les/tasks/chain_logging.
 
 #### Micropayment accounting, building a reputation network
 
-Offering (improved) service for money requires some kind of accounting mechanism. Selling service also requires reputation which is based on being known for good service in the past. This might be an entry barrier for smaller capacity servers. In order to lower this barrier it would be desirable to make reputation transitive. One possible way of realizing this is for servers to mutually recommend each other by selling not just their own service but each other's service tokens too. This requires a transparent accounting that shows what tokens a certain server is offering to their clients and how much has it actually sold. The clients and the cooperating servers all want to be sure that they see the same numbers. Also the total outstanding number of tokens issued by a certain server might be interesting too before buying more of its tokens. OCs are suitable for running such a trustworthy accounting.
+Offering (improved) service for money requires some kind of accounting mechanism. Selling service also requires reputation which is based on being known for good service in the past. This self-reinforcing effect might create an entry barrier for new and small capacity servers (just like in case of traditional markets). In order to lower this barrier it would be desirable to make reputation "transitive" by good servers mutually recommending each other. One possible way of realizing this is by selling not just their own service but each other's service tokens too. This requires a transparent accounting that shows what tokens a certain server is offering to their clients and how much it has actually sold. The clients and the cooperating servers all want to be sure that they see the same numbers. Also the total outstanding number of tokens issued by a certain server might be interesting too before buying more of its tokens. OCs are suitable for running such a trustworthy accounting.
 
 See also:
 
@@ -152,6 +154,8 @@ Note: realizing a "proof of availability" mechanism with OCs and CFs as a part o
 See also:
 https://github.com/ethereum/research/wiki/A-note-on-data-availability-and-erasure-coding
 
+
+There is also a case that could prevent defending a correct execution: if the result of a `reverse_hash` is too large to be sent to the judge contract. Therefore accessed data size should be limited. Unfortunately in the currently used EVM state format there is one field where size is not limited: the contract code. Accessing contract code is not required at the moment for any planned use cases but if needed, some workaround would be needed. For newly designed data formats it is always recommended to use tree-hashing in case of arbitrarily long data.
 
 #### On-chain validation
 

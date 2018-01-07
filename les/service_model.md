@@ -10,7 +10,9 @@
 ### Free service model
 
 Request frequency is limited by client side flow control:
+
 https://github.com/zsfelfoldi/go-ethereum/wiki/Client-Side-Flow-Control-model-for-the-LES-protocol
+
 The flow control mechanism can theoretically ensure that clients can never send too many requests simultaneously and all requests will be served with a short latency. Such a strong guarantee comes at a high price though: the number of client connections should be low enough to ensure that is all of them exhaust their flow control buffer at once, still all requests can be quickly served (under 100ms). This might be suitable for paying clients but since most of the clients most of the time are just syncing headers, free clients would probably be happy with being able to connect more easily and get a weaker guarantee of performance.
 
 Let us assume that
