@@ -154,8 +154,7 @@ Note: realizing a "proof of availability" mechanism with OCs and CFs as a part o
 See also:
 https://github.com/ethereum/research/wiki/A-note-on-data-availability-and-erasure-coding
 
-
-There is also a case that could prevent defending a correct execution: if the result of a `reverse_hash` is too large to be sent to the judge contract. Therefore accessed data size should be limited. Unfortunately in the currently used EVM state format there is one field where size is not limited: the contract code. Accessing contract code is not required at the moment for any planned use cases but if needed, some workaround would be needed. For newly designed data formats it is always recommended to use tree-hashing in case of arbitrarily long data.
+There is also a case that could prevent defending a correct execution: if the result of a `reverse_hash` is too large to be sent to the judge contract. Therefore accessed data size should be limited. Unfortunately in the currently used EVM state format there is one field where size is not limited: the contract code. Accessing contract code is not required at the moment for any planned use cases but if ever needed, some workaround would be required. For newly designed input data formats it is always recommended to use some kind of tree-hashing in case of arbitrarily long data. For example Swarm hashed data is suitable as an input. (Swarm is also aiming to be able to provide proof of data availablility)
 
 #### On-chain validation
 
