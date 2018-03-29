@@ -1,5 +1,9 @@
 ## Paid LES service model
 
+Note: this document is a proposal intended to start an internal discussion before finalizing the design.
+
+### Performance assumptions
+
 Our service model is based on the following assumptions:
 
 - resource/time requirements of serving each type of requests is more or less consistent, at least in the most general case (when nothing is cached)
@@ -9,9 +13,9 @@ Our service model is based on the following assumptions:
 
 ### Load limitation strategy
 
-The server has a hard limit for `parallelReqs` called `maxParallelReqs`. Whenever possible, it uses the flow control mechanism to limit the incoming rate of requests so that the average of `parallelReqs` stays under `targetParallelReqs` in order to avoid queueing and delayed processing. (`targetParallelReqs` < `maxParallelReqs`)
+The server has a hard limit for `parallelReqs` called `maxParallelReqs`. Whenever possible, it uses the flow control mechanism [1] to limit the incoming rate of requests so that the average of `parallelReqs` stays under `targetParallelReqs` in order to avoid queueing and delayed processing. (`targetParallelReqs` < `maxParallelReqs`)
 
-Request cost is specified as the serving time of the request in nanoseconds. The server has some upper time estimates for serving different types of requests (measured at `parallelReqs` = `targetParallelReqs`) which are used by the flow control [1] as `maxCost` estimates. The sum of `MRR` (Minimum Recharge Rate, guaranteed recharge rate of `bufValue` per millisecond) parameters for active clients is limited at `targetParallelReqs` * 1000000. This ensures that the automatic buffer recharge will not allow clients to send requests at a rate that would drive the long-term average of `parallelReqs` over `targetParallelReqs` even when every client is sending requests at the maximum permitted rate.
+Request cost is specified as the serving time of the request in nanoseconds. The server has some upper time estimates for serving different types of requests (measured at `parallelReqs` = `targetParallelReqs`) which are used by the flow control as `maxCost` estimates. The sum of `MRR` (Minimum Recharge Rate, guaranteed recharge rate of `bufValue` per millisecond) parameters for active clients is limited at `targetParallelReqs` * 1000000. This ensures that the automatic buffer recharge will not allow clients to send requests at a rate that would drive the long-term average of `parallelReqs` over `targetParallelReqs` even when every client is sending requests at the maximum permitted rate.
 
 `bufValue` update is calculated for each peer after serving each request (note that `maxCost` has already been deducted from `bufValue` when accepting the request):
 
@@ -78,11 +82,11 @@ Desirable properties for the default bandwidth selling mechanism:
 
 Since servers have a fixed supply of bandwidth for every moment that becomes worthless when not sold until that specific moment, they are interested in selling it before that moment (either right before or in advance*). Though selling future bandwidth could make sense if there are continously running clients willing to secure service at a suitable price, a basic market method is required that is capable of selling bandwidth "real time" and quickly negotiating with buyers. The chosen method is a "continous auction" where once a bid is sent by a client, it is applied for each subsequent moment until it is revoked, updated or the client's funds account is depleted. The winners and the prices to be paid per time unit are re-evaluated each time a bid is sent, updated or revoked (all of which have a small extra fee).
 
-* Note: there are multiple possible models for selling future bandwidth but these are not discussed further in this document and will not be implemented in the first round. A free market economy is not something that is designed on a drawing board and I believe it would be premature to suggest alternatives to the basic method before it is operational and we have any experience to draw conclusions from.
+\* Note: there are multiple possible models for selling future bandwidth but these are not discussed further in this document and will not be implemented in the first round. A free market economy is not something that is designed on a drawing board and I believe it would be premature to suggest alternatives to the basic method before it is operational and we have any experience to draw conclusions from.
 
 ##### Continous auction
 
-The chosen auction model, Vickrey multi-unit auction [1,2] (the multi-unit generalization of the second-price sealed-bid auction) is "truthful", which means that the optimal strategy for clients is to bid according to their true valuation of the service (the highest price they are willing to pay). In contrast, pay-as-bid auctions do not have this property, in that model clients are incentivized not to reveal the maximum value they are willing to pay but to constantly change their bids in order to find the minimum price at which they can get the desired amount.
+The chosen auction model, Vickrey multi-unit auction [2,3] (the multi-unit generalization of the second-price sealed-bid auction) is "truthful", which means that the optimal strategy for clients is to bid according to their true valuation of the service (the highest price they are willing to pay). In contrast, pay-as-bid auctions do not have this property, in that model clients are incentivized not to reveal the maximum value they are willing to pay but to constantly change their bids in order to find the minimum price at which they can get the desired amount.
 
 Bandwidth is sold in fixed equal units and clients can offer non-strictly monotonic decreasing prices for their first and then their subsequent units. The outcome of a Vickrey multi-unit auction is the same as that of a uniform price or a pay-as-bid auction: when there are N units to be sold in total, the best N offers for individual units are winning. Payments for client A are calculated as (sum of all winning bids)-(sum of A's winning bids)-(sum of all winning bids if A's bids are removed) and is equal to or lower than in case of a uniform price auction (where everyone pays the price of the highest losing bid per unit). When a bid is entered, updated or revoked, the server recalculates the results immediately and notifies those clients whose assigned bandwidth has changed.
 
@@ -109,7 +113,7 @@ The details of the server selection algorithm are still being worked out, with t
 - it should incentivize servers to consistently give the best possible quality of service regardless of current price levels by basing choices partly on long-term statistics* and therefore ensuring demand at the price peaks too, when the largest profit can be earned
 - it should be close to ideal for the clients themselves too, the long-term statistics should really be a good indicator of future service quality (at least for servers who operate honestly)
 
-* Short-term factors should affect server selection too (clients should disconnect if the server appears to be useless at the moment) but long-term stats should make them the preferred choices if they are capable of providing a performance/price ratio at least similar to the other simultaneously connected nodes. Clients always try to have multiple active server connections, buying only part of the required bandwidth from each. This is necessary both for ensuring a continous connection to the network and being able to detect short-term relative price/performance changes and choose less loaded servers.
+\* Short-term factors should affect server selection too (clients should disconnect if the server appears to be useless at the moment) but long-term stats should make them the preferred choices if they are capable of providing a performance/price ratio at least similar to the other simultaneously connected nodes. Clients always try to have multiple active server connections, buying only part of the required bandwidth from each. This is necessary both for ensuring a continous connection to the network and being able to detect short-term relative price/performance changes and choose less loaded servers.
 
 ##### Server strategy
 
@@ -118,11 +122,9 @@ By always selling all available bandwidth at any price (or even giving it away f
 Note: servers could try to increase their fees by setting a minimum price but then clients would consider their price/performance ratio worse than their competitors and they would lose more profit during price peaks. 
 
 
-
 #### References
 
 1. [Client Side Flow Control model for the LES protocol](https://github.com/zsfelfoldi/go-ethereum/wiki/Client-Side-Flow-Control-model-for-the-LES-protocol)
 2. [Lawrence M. Ausubel: "Auctions: Theory"](http://www.cs.cmu.edu/~sandholm/cs15-892F13/Ausubel_Auction_Theory_Palgrave.pdf)
-3. [Brian Baisa: "Bid Behavior in the Uniform Price and Vickrey
-Auctions on a General Preference Domain"](https://www.amherst.edu/system/files/baisa%20vickrey%20-%20unif_0.pdf)
+3. [Brian Baisa: "Bid Behavior in the Uniform Price and Vickrey Auctions on a General Preference Domain"](https://www.amherst.edu/system/files/baisa%20vickrey%20-%20unif_0.pdf)
 
