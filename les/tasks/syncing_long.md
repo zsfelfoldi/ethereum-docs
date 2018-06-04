@@ -44,6 +44,7 @@ func tdCheck(A, B) bool {
   }
   C := GetBlockByNumber((A.number+B.number)/2])
   return tdCheck(A, C) && tdCheck(C, B)
+}
 
 ```
 
@@ -51,9 +52,9 @@ Since it relies on probabilistic sampling it does not guarantee the detection of
 
 ### Chain identification check
 
-Chain identification check provides a method to prove that a block (if valid) is a descendant of a specific older block called an identification block or IdBlock. A chain can be identified by one or more IdBlocks. An IdBlock can be the genesis block of a chain, the first block after a fork or basically any block. The chain identification contract can store recent canonical block number -> hash associations upon anyone's request and these can be used as IdBlocks. If the chain uses IdBlocks other than the genesis block (which unfortunately can only be stored by the contract in case of new chains because it can only see the past 255 block hashes) then those should be listed in the chain configuration.
+Chain identification check provides a method to prove that a block (if valid) is a descendant of a specific older block called an identification block or IdBlock. A chain can be identified by one or more IdBlocks. An IdBlock can be the genesis block of a chain, the first block after a fork or basically any block. It is realised by a chain identification contract that can store recent canonical block number -> hash associations (using EVM's BLOCKHASH opcode) upon anyone's request and these can be used as IdBlocks. If the chain uses IdBlocks other than the genesis block (which unfortunately can only be stored by the contract in case of new chains because BLOCKHASH can only see the past 256 block hashes) then those should be listed in the chain configuration.
 
-The identification process consists of a simple contract call which performs a single read. The tricky part here is that old states are not stored by most of the full nodes so we need some extra mechanism (maybe also a separate database) to store this contract's storage and the Merkle proofs leading up to it from each block's state root. We are probably going to need this for Casper's contract too so we should come up with a nice generalised method for keeping some contract data permanently available.
+The identification process consists of a simple contract call which checks if the latest IdBlock in the chain config actually matches the entry in the contract. It performs a single contract storage Merkle proof retrieval. The tricky part here is that old states are not stored by most of the full nodes so we need some extra mechanism (maybe also a separate database) to store this contract's storage and the Merkle proofs leading up to it from each block's state root. We are probably going to need this for Casper's contract too so we should come up with a nice generalised method for keeping some contract data permanently available.
 
 Note: for the most valuable existing Ethash chain (Ethereum main net) the syncing could safely work without chain identification check too. Since implementing this check is probably the most complex part of this task, it can be left to a later stage.
 
