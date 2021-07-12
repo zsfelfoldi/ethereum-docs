@@ -12,22 +12,22 @@ function suggestFees() {
     // feeHistory API call without a reward percentile specified is cheap even with a light client backend because it only needs block headers.
     // Therefore we can afford to fetch a hundred blocks of base fee history in order to make meaningful estimates on variable time scales.
     var feeHistory = eth.feeHistory(100, "latest");
-    var baseFee = feeHistory.baseFeePerGas;
-    var gasUsedRatio = feeHistory.gasUsedRatio;
+    var baseFee = []
+    var order = [];
+    for (var i = 0; i < feeHistory.baseFeePerGas.length; i++) {
+        baseFee.push(parseInt(feeHistory.baseFeePerGas[i]));
+        order.push(i);
+    }
 
     // If a block is full then the baseFee of the next block is copied. The reason is that in full blocks the minimal tip might not be enough to get included.
     // The last (pending) block is also assumed to end up being full in order to give some upwards bias for urgent suggestions.
     baseFee[baseFee.length - 1] *= 9 / 8;
-    for (var i = gasUsedRatio.length - 1; i >= 0; i--) {
-        if (gasUsedRatio[i] > 0.9) {
+    for (var i = feeHistory.gasUsedRatio.length - 1; i >= 0; i--) {
+        if (feeHistory.gasUsedRatio[i] > 0.9) {
             baseFee[i] = baseFee[i + 1];
         }
     }
 
-    var order = [];
-    for (var i = 0; i < baseFee.length; i++) {
-        order.push(i);
-    }
     order.sort(function compare(a, b) {
         var aa = baseFee[a];
         var bb = baseFee[b];
@@ -40,7 +40,7 @@ function suggestFees() {
         return 0;
     })
 
-    var tip = suggestTip(feeHistory.oldestBlock, gasUsedRatio);
+    var tip = suggestTip(feeHistory.oldestBlock, feeHistory.gasUsedRatio);
     var result = [];
     var maxBaseFee = 0;
     for (var timeFactor = maxTimeFactor; timeFactor >= 0; timeFactor--) {
@@ -74,7 +74,7 @@ function suggestTip(firstBlock, gasUsedRatio) {
             // feeHistory API call with reward percentile specified is expensive and therefore is only requested for a few non-full recent blocks.
             var feeHistory = eth.feeHistory(blockCount, firstBlock + ptr, [10]);
             for (var i = 0; i < feeHistory.reward.length; i++) {
-                rewards.push(feeHistory.reward[i][0]);
+                rewards.push(parseInt(feeHistory.reward[i][0]));
             }
             if (feeHistory.reward.length < blockCount) {
                 break;
@@ -88,7 +88,7 @@ function suggestTip(firstBlock, gasUsedRatio) {
         return fallbackTip;
     }
     rewards.sort();
-    return rewards[Math.trunc(rewards.length / 2)];
+    return rewards[Math.floor(rewards.length / 2)];
 }
 
 // maxBlockCount returns the number of consecutive blocks suitable for tip suggestion (gasUsedRatio between 0.1 and 0.9).
